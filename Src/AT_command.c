@@ -5,29 +5,31 @@
 #include <stdbool.h>
 #include "delay_lib.h"
 
-#define AT_PASSWORD "1234"
-// Use flash sector for mode storage - 1 bit: 1=AT mode, 0=run mode
-#define MODE_FLASH_ADDR ((uint32_t)0x08004000) // Sector 1 address
+#define AT_PASSWORD "1234"           // Default password for mode switching
+#define MODE_FLASH_ADDR ((uint32_t)0x08004000) // Flash sector 1 address for mode storage
 
-static uint8_t current_mode = 1;
-static bool password_ok = false;
+static uint8_t system_mode = 1;       // Current system mode (1=AT mode, 2=Run mode)
+static bool password_verified = false; // Password verification status
 
+// Unlock flash controller for write/erase operations
 void flash_unlock(void) {
-    if (FLASH->CR & FLASH_CR_LOCK) {
-        FLASH->KEYR = 0x45670123;
-        FLASH->KEYR = 0xCDEF89AB;
+    if (FLASH->CR & FLASH_CR_LOCK) {     // Check if flash is locked
+        FLASH->KEYR = 0x45670123;        // Key 1
+        FLASH->KEYR = 0xCDEF89AB;        // Key 2
     }
 }
 
+// Lock flash controller to prevent accidental writes
 void flash_lock(void) {
-    FLASH->CR |= FLASH_CR_LOCK;
+    FLASH->CR |= FLASH_CR_LOCK;          // Set lock bit
 }
 
-void flash_erase_sector(uint32_t addr) {
-    // Wait for any pending operations
+// Erase specified flash sector
+void flash_erase_sector(uint32_t sector_address) {
+    // Wait for any pending flash operations to complete
     while (FLASH->SR & FLASH_SR_BSY);
     
-    // Clear error flags
+    // Clear all error flags before operation
     FLASH->SR = FLASH_SR_EOP | FLASH_SR_WRPERR | FLASH_SR_PGAERR | FLASH_SR_PGPERR | FLASH_SR_PGSERR;
     
     // Configure sector erase
@@ -120,53 +122,53 @@ uint8_t flash_read_mode(void) {
 
 void AT_init(void)
 {
-    current_mode = flash_read_mode(); // Read mode from flash storage
-    password_ok = false;
+    system_mode = flash_read_mode(); // Read current mode from flash storage
+    password_verified = false;       // Reset password verification status
 }
 
 void AT_handle_command(const char *cmd, char *response) {
     if (strcmp(cmd, "AT") == 0) {
-        strcpy(response, "\r\nOK");
+        strcpy(response, "OK\n");
     } else if (strcmp(cmd, "ATC") == 0) {
-        strcpy(response, "\r\nSTM32F411CEU6 AT COMMAND READY");
-    } else if (strcmp(cmd, "AT+MODE?") == 0) {
-        // Debug command to check current mode
-        char mode_str[50];
-        sprintf(mode_str, "\r\nCURRENT MODE: %d", current_mode);
-        strcpy(response, mode_str);
-    } else if (strcmp(cmd, "AT+FLASH?") == 0) {
+        strcpy(response, "STM32F411CEU6 AT COMMAND READY\n");
+    } else if (strcmp(cmd, "AT+MODE") == 0) {
+        // Debug command to check current operating mode
+        char mode_status[50];
+        sprintf(mode_status, "CURRENT MODE: %d\n", system_mode);
+        strcpy(response, mode_status);
+    } else if (strcmp(cmd, "AT+FLASH") == 0) {
         // Debug command to check flash value
         uint32_t flash_val = *(volatile uint32_t *)MODE_FLASH_ADDR;
         char flash_str[60];
-        sprintf(flash_str, "\r\nFLASH: 0x%08X", (unsigned int)flash_val);
+        sprintf(flash_str, "FLASH: 0x%08X\n", (unsigned int)flash_val);
         strcpy(response, flash_str);
     } else if (strcmp(cmd, "AT+TEST") == 0) {
         // Test flash write
         flash_write_mode(2); // Try to write run mode
         uint32_t flash_val = *(volatile uint32_t *)MODE_FLASH_ADDR;
         char test_str[80];
-        sprintf(test_str, "\r\nTEST WRITE DONE, FLASH: 0x%08X", (unsigned int)flash_val);
+        sprintf(test_str, "TEST WRITE DONE, FLASH: 0x%08X\n", (unsigned int)flash_val);
         strcpy(response, test_str);
-    } else if (strncmp(cmd, "AT+PW=", 6) == 0) {  // Fixed: should be 6, not 7
-        const char *password = cmd + 6;  // Fixed: should be 6, not 7
-        if (strcmp(password, AT_PASSWORD) == 0) {
-            password_ok = true;
-            strcpy(response, "\r\nPASSWORD OK");
+    } else if (strncmp(cmd, "AT+PW=", 6) == 0) {
+        const char *entered_password = cmd + 6;  // Extract password from command
+        if (strcmp(entered_password, AT_PASSWORD) == 0) {
+            password_verified = true;             // Password correct
+            strcpy(response, "PASSWORD OK\n");
         } else {
-            password_ok = false;
-            strcpy(response, "\r\nPASSWORD ERROR. TRY AGAIN.");
+            password_verified = false;            // Password incorrect
+            strcpy(response, "PASSWORD ERROR. TRY AGAIN.\n");
         }
     } else if (strcmp(cmd, "AT+END") == 0) {
-        if (!password_ok) {
-            strcpy(response, "\r\nENTER PASSWORD FIRST");
+        if (!password_verified) {                 // Check if password was entered
+            strcpy(response, "ENTER PASSWORD FIRST\n");
         } else {
-            // Send response first
-            strcpy(response, "\r\nEND. RESTARTING IN MODE 2...");
+            // Send response first before mode change
+            strcpy(response, "END. RESTARTING IN MODE 2...\n");
             // Note: Reset will be handled by main.c after sending response
             // Write run mode to flash first
-            flash_write_mode(2); // Run mode (mode 2)
+            flash_write_mode(2);                  // Switch to run mode (mode 2)
             // Set flag for main.c to handle reset after response is sent
-            current_mode = 2;
+            system_mode = 2;
         }
     } else {
         // Check for invalid lowercase letters in command
@@ -179,24 +181,24 @@ void AT_handle_command(const char *cmd, char *response) {
         }
         
         if (has_lowercase) {
-            strcpy(response, "\r\nINVALID COMMAND");
+            strcpy(response, "INVALID COMMAND\n");
         } else {
-            strcpy(response, "\r\nINVALID COMMAND");
+            strcpy(response, "INVALID COMMAND\n");
         }
     }
 }
 
 uint8_t AT_get_mode(void) {
-    return current_mode;
+    return system_mode;  // Return current system operating mode
 }
 
 bool AT_should_reset(void) {
-    // Check if we need to reset (after AT+END command)
-    return (current_mode == 2 && password_ok);
+    // Check if system reset is required (after AT+END command with valid password)
+    return (system_mode == 2 && password_verified);
 }
 
 void AT_reset_password(void) {
-    password_ok = false;
-    current_mode = 1;
-    flash_write_mode(current_mode); // Reset to mode 1 in flash storage
+    password_verified = false;        // Clear password verification
+    system_mode = 1;                  // Reset to AT mode
+    flash_write_mode(system_mode);    // Write mode to flash storage
 }
