@@ -5,8 +5,8 @@
 
 void init_config(void)
 {
-    GPIO_InitTypeDef gpio_config;     // GPIO configuration structure
-    USART_InitTypeDef uart_config;    // UART configuration structure
+    GPIO_InitTypeDef gpio_config;  // GPIO configuration structure
+    USART_InitTypeDef uart_config; // UART configuration structure
 
     // Initialize timer-based delay system first (required for other functions)
     delay_init();
@@ -16,18 +16,18 @@ void init_config(void)
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE); // Enable USART2 clock
 
     // Configure PA2 (USART2_TX) as alternate function
-    gpio_config.GPIO_Pin = GPIO_Pin_2;           // Pin 2 for TX
-    gpio_config.GPIO_Mode = GPIO_Mode_AF;        // Alternate function mode
-    gpio_config.GPIO_Speed = GPIO_High_Speed;    // High speed for reliable communication
-    gpio_config.GPIO_OType = GPIO_OType_PP;      // Push-pull output
-    gpio_config.GPIO_PuPd = GPIO_PuPd_UP;        // Pull-up resistor (idle high)
+    gpio_config.GPIO_Pin = GPIO_Pin_2;        // Pin 2 for TX
+    gpio_config.GPIO_Mode = GPIO_Mode_AF;     // Alternate function mode
+    gpio_config.GPIO_Speed = GPIO_High_Speed; // High speed for reliable communication
+    gpio_config.GPIO_OType = GPIO_OType_PP;   // Push-pull output
+    gpio_config.GPIO_PuPd = GPIO_PuPd_UP;     // Pull-up resistor (idle high)
     GPIO_Init(GPIOA, &gpio_config);
-    GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);  // Set alternate function
+    GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2); // Set alternate function
 
     // Configure PA3 (USART2_RX) as alternate function
-    gpio_config.GPIO_Pin = GPIO_Pin_3;           // Pin 3 for RX
-    GPIO_Init(GPIOA, &gpio_config);              // Same config as TX
-    GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);  // Set alternate function
+    gpio_config.GPIO_Pin = GPIO_Pin_3;                        // Pin 3 for RX
+    GPIO_Init(GPIOA, &gpio_config);                           // Same config as TX
+    GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2); // Set alternate function
 
     // Configure USART2 parameters: 115200 baud, 8 data bits, no parity, 1 stop bit
     uart_config.USART_BaudRate = 115200;
@@ -40,8 +40,8 @@ void init_config(void)
     USART_Cmd(USART2, ENABLE);
 
     // Enable clock for GPIO ports used for LEDs
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);  // Enable GPIOC for PC13
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);  // Enable GPIOA for PA10
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE); // Enable GPIOC for PC13
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE); // Enable GPIOA for PA10
 
     // Configure PC13 as output pin for LED control
     gpio_config.GPIO_Mode = GPIO_Mode_OUT;
