@@ -23,20 +23,20 @@ Mode selection persists through power cycles using Flash memory storage.
 STM32F411CEU6-Template/
 ├── Src/
 │   ├── main.c           # Main application loop
-│   ├── AT_command.c     # AT command processing & flash storage
+│   ├── AT_command.c     # AT command processing, flash storage, and AT_process_command_mode()
 │   ├── init_config.c    # Hardware initialization
 │   ├── uart_config.c    # UART communication functions
 │   └── delay_lib.c      # Timer-based delays
 ├── Inc/
-│   ├── AT_command.h     # AT command interface
+│   ├── AT_command.h     # AT command interface (now includes AT_process_command_mode)
 │   ├── init_config.h    # Hardware configuration
 │   └── uart_config.h    # UART interface
 └── REPORT.md           # This documentation
 ```
 
 ### System Components
-1. **Main Controller** (`main.c`) - Core application logic
-2. **AT Command Processor** (`AT_command.c`) - Command parsing & execution
+1. **Main Controller** (`main.c`) - Core application logic, now calls AT_process_command_mode for AT command handling
+2. **AT Command Processor** (`AT_command.c`) - Command parsing, execution, flash operations, and encapsulated AT_process_command_mode()
 3. **Hardware Abstraction** (`init_config.c`) - GPIO, USART, Timer setup
 4. **Communication Layer** (`uart_config.c`) - UART functions
 5. **Flash Storage Manager** - Non-volatile mode persistence
@@ -88,17 +88,18 @@ Mode Detection
 
 ### AT Command Processing
 ```
-UART Input → Echo Characters → Line Complete?
-                                     ↓
-                              AT_handle_command()
-                                     ↓
-                              Command Validation
-                                     ↓
-                              Response Generation
-                                     ↓
-                              UART Output
-                                     ↓
-                              Reset Check (AT+END)
+AT_process_command_mode() encapsulates:
+    UART Input → Echo Characters → Line Complete?
+        ↓
+    AT_handle_command()
+        ↓
+    Command Validation
+        ↓
+    Response Generation
+        ↓
+    UART Output
+        ↓
+    Reset Check (AT+END)
 ```
 
 ### Mode Switching Flow
@@ -683,33 +684,8 @@ int main(void)
         current_mode = AT_get_mode();
         
         if (current_mode == 1) {                    // AT Command Mode
-            // Buffer management
-            char at_buf[AT_BUFFER_SIZE];
-            char at_resp[AT_BUFFER_SIZE];
-            memset(at_buf, 0, AT_BUFFER_SIZE);
-            memset(at_resp, 0, AT_BUFFER_SIZE);
-            
-            // Input handling with timeout
-            int len = usart2_read_line(at_buf, AT_BUFFER_SIZE, AT_READ_TIMEOUT_MS);
-            
-            if (len > 0 && at_buf[0] != '\0') {
-                // Command processing
-                AT_handle_command(at_buf, at_resp);
-                
-                // Response transmission
-                if (at_resp[0] != '\0') {
-                    usart2_send_string(at_resp);
-                    
-                    // Wait for transmission complete
-                    while (USART_GetFlagStatus(USART2, USART_FLAG_TC) == RESET);
-                    
-                    // Reset handling
-                    if (AT_should_reset()) {
-                        delay_ms(100);              // Ensure response sent
-                        NVIC_SystemReset();         // Software reset
-                    }
-                }
-            }
+            // All AT command input, processing, and response is now encapsulated:
+            AT_process_command_mode();
         }
         
         else if (current_mode == 2) {               // LED Blink Mode
@@ -812,30 +788,14 @@ main()
 ```c
 main() - AT Mode Loop
 ├── AT_get_mode()                       // Check current mode
-├── memset()                            // Clear buffers
-├── usart2_read_line()                  // Get user input
-│   ├── USART_GetFlagStatus()           // Check RX flag
-│   ├── USART_ReceiveData()             // Read character
-│   ├── usart2_echo_char()              // Echo back
-│   │   ├── USART_GetFlagStatus()       // Check TX flag
-│   │   └── USART_SendData()            // Send character
-│   └── usart2_send_string()            // Send newline
-├── AT_handle_command()                 // Process command
-│   ├── strcmp()                        // Command comparison
-│   ├── strncmp()                       // Password command check
-│   ├── sprintf()                       // Format responses
-│   └── flash_write_mode()              // For AT+END command
-│       ├── __disable_irq()             // Critical section start
-│       ├── flash_unlock()              // Unlock flash
-│       ├── flash_erase_sector()        // Erase sector 1
-│       ├── FLASH write operations      // Program new data
-│       ├── flash_lock()                // Lock flash
-│       └── __enable_irq()              // Critical section end
-├── usart2_send_string()                // Send response
-├── USART_GetFlagStatus()               // Wait TX complete
-├── AT_should_reset()                   // Check reset flag
-├── delay_ms()                          // Pre-reset delay
-└── NVIC_SystemReset()                  // System reset
+├── AT_process_command_mode()           // Handles all AT command input, processing, response, and reset logic
+    ├── usart2_read_line()              // Get user input
+    ├── AT_handle_command()             // Process command
+    ├── usart2_send_string()            // Send response
+    ├── USART_GetFlagStatus()           // Wait TX complete
+    ├── AT_should_reset()               // Check reset flag
+    ├── delay_ms()                      // Pre-reset delay
+    └── NVIC_SystemReset()              // System reset
 ```
 
 #### LED Blink Mode Call Flow
@@ -888,6 +848,16 @@ int usart2_read_line(char *buf, int max_len, uint32_t timeout_ms);
 - **Returns**: Number of characters read (excluding null terminator)
 - **Side Effects**: Echoes characters, sends CRLF on line end
 - **Thread Safety**: Not thread-safe (single-threaded system)
+
+
+##### **AT_process_command_mode()**
+```c
+void AT_process_command_mode(void);
+```
+- **Purpose**: Encapsulates the entire AT command mode loop: reads UART input, processes commands, sends responses, and handles reset if needed.
+- **Parameters**: None
+- **Side Effects**: Handles all AT command input, output, and system reset logic. Calls AT_handle_command internally.
+- **Usage**: Call this function in the main loop when in AT command mode.
 
 ##### **AT_handle_command()**
 ```c
