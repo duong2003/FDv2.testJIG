@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "STM32F411xE",
+            "includePath": [
+                "${workspaceFolder}/Inc",
+                "${workspaceFolder}/Drivers/STM32F4xx_StdPeriph_Driver/inc",
+                "${workspaceFolder}/Drivers/CMSIS/Device/ST/STM32F4xx/Include",
+                "${workspaceFolder}/Drivers/CMSIS/Include",
+                "${workspaceFolder}/Src"
+            ],
+            "defines": [
+                "USE_STDPERIPH_DRIVER",
+                "STM32F411xE",
+                "HSE_VALUE=8000000",
+                "__GNUC__",
+                "_DEBUG"
+            ],
+            "cStandard": "c99",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "gcc-arm",
+            "configurationProvider": "ms-vscode.makefile-tools",
+            "compilerPath": "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/14.3 Rel1/bin/arm-none-eabi-gcc.exe"
+        }
+    ],
+    "version": 4
+}
